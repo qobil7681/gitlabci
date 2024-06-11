@@ -1,0 +1,59 @@
+stages:
+#  - build
+#  - test
+  - release
+  - deploy
+
+#build_stage:
+#  stage: build
+#  script:
+#      - echo "Build Stage!"
+#      - echo "Creating virtual environment for the project..."
+#      - venv -m $(pwd)/venv
+#      - source $(pwd)/venv/bin/
+#      - echo "Creating virtual environment for the project..."
+#      - pip install -r requirement.txt
+#      - deactivate
+#  artifacts:
+#    paths:
+#      - $(pwd)/venv
+
+#test_state:
+#  stage: test
+#  script:
+#      - echo "Test Stage!"
+#      - echo "Activating virtual environment..."
+#      - source $PROJECT_DIR/venv/bin/activate
+#      - echo "Running unit tests..."
+#      - python src/manage.py test
+#      - echo "Checking the server..."
+#      - python src/manage.py runserver &
+#      - sleep 10
+#      - curl -sSf http://localhost:8000 > /dev/null && echo "Server is Up"
+#      - sudo pkill python
+#      - deactivate
+#      - echo "All tests successfully passed."
+
+variables:
+  CONTAINER_IMAGE: $CI_REGISTRY_IMAGE:$CI_PIPELINE_IID
+
+release_stage:
+  image: docker
+  stage: release
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $CONTAINER_IMAGE .
+    - docker push $CONTAINER_IMAGE
+  after_script:
+    - docker logout
+
+deploy_stage:
+  image: docker
+  stage: deploy
+  before_script:
+    - chmod 400 $SSH_KEY
+  script:
+    - ssh -o StrictHostKeyChecking=no -i $SSH_KEY root@13.41.23.191 "
+      docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY &&
+      docker run -d -p 5000:8000 $CONTAINER_IMAGE"
